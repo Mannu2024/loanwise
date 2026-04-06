@@ -1,0 +1,148 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: {userId} (matches Auth UID)
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - email: string (required, email format)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, enum: ['user', 'admin'])
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: /users/{userId}/creditItems/{itemId}
+    // Document ID: {itemId} (randomly generated)
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - userId: string (required, immutable, matches parent userId)
+    //   - bankName: string (required, max 100 chars)
+    //   - type: string (required, enum: ['credit_card', 'personal_loan', 'home_loan', 'auto_loan', 'education_loan', 'other'])
+    //   - limit: number (optional, positive)
+    //   - balance: number (required, positive)
+    //   - interestRate: number (required, positive, max 100)
+    //   - emi: number (required, positive)
+    //   - dueDate: string (optional, max 50 chars)
+    //   - tenure: number (optional, positive)
+    //   - totalAmountTaken: number (optional, positive)
+    //   - emiStartDate: string (optional)
+    //   - emiEndDate: string (optional)
+    //   - nextEmiDate: string (optional)
+    //   - emiPaid: number (optional, positive)
+    //   - emiLeft: number (optional, positive)
+    //   - foreclosureAmount: number (optional, positive)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: /users/{userId}/insights/{insightId}
+    // Document ID: {insightId} (randomly generated)
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - userId: string (required, immutable, matches parent userId)
+    //   - title: string (required, max 200 chars)
+    //   - description: string (required, max 2000 chars)
+    //   - type: string (required, enum: ['warning', 'suggestion', 'info'])
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "manishthakur2024@ramjas.du.ac.in" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isRecent(time) {
+      return time is timestamp && time <= request.time && time > request.time - duration.value(5, 'm');
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+             data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['user', 'admin'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidCreditItem(data) {
+      return data.keys().hasAll(['uid', 'userId', 'bankName', 'type', 'balance', 'interestRate', 'emi', 'createdAt']) &&
+             data.keys().hasOnly(['uid', 'userId', 'bankName', 'type', 'limit', 'balance', 'interestRate', 'emi', 'dueDate', 'tenure', 'totalAmountTaken', 'emiStartDate', 'emiEndDate', 'nextEmiDate', 'emiPaid', 'emiLeft', 'foreclosureAmount', 'paymentHistory', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.bankName is string && data.bankName.size() > 0 && data.bankName.size() <= 100 &&
+             data.type in ['credit_card', 'personal_loan', 'home_loan', 'auto_loan', 'education_loan', 'other'] &&
+             data.balance is number && data.balance >= 0 &&
+             data.interestRate is number && data.interestRate >= 0 && data.interestRate <= 100 &&
+             data.emi is number && data.emi >= 0 &&
+             (!('limit' in data) || (data.limit is number && data.limit >= 0)) &&
+             (!('dueDate' in data) || (data.dueDate is string && data.dueDate.size() <= 50)) &&
+             (!('tenure' in data) || (data.tenure is number && data.tenure >= 0)) &&
+             (!('totalAmountTaken' in data) || (data.totalAmountTaken is number && data.totalAmountTaken >= 0)) &&
+             (!('emiStartDate' in data) || (data.emiStartDate is string)) &&
+             (!('emiEndDate' in data) || (data.emiEndDate is string)) &&
+             (!('nextEmiDate' in data) || (data.nextEmiDate is string)) &&
+             (!('emiPaid' in data) || (data.emiPaid is number && data.emiPaid >= 0)) &&
+             (!('emiLeft' in data) || (data.emiLeft is number && data.emiLeft >= 0)) &&
+             (!('foreclosureAmount' in data) || (data.foreclosureAmount is number && data.foreclosureAmount >= 0)) &&
+             (!('paymentHistory' in data) || (data.paymentHistory is list)) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidInsight(data) {
+      return data.keys().hasAll(['uid', 'userId', 'title', 'description', 'type', 'createdAt']) &&
+             data.keys().hasOnly(['uid', 'userId', 'title', 'description', 'type', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 2000 &&
+             data.type in ['warning', 'suggestion', 'info'] &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+
+      match /creditItems/{itemId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidCreditItem(request.resource.data) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && isValidCreditItem(request.resource.data) && request.resource.data.userId == userId && request.resource.data.uid == resource.data.uid;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /insights/{insightId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isAdmin(); // Only admins (or AI via admin) can create insights
+        allow update: if isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+  }
+}

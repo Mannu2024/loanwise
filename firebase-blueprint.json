@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "User's email" },
+        "displayName": { "type": "string", "description": "User's display name" },
+        "photoURL": { "type": "string", "description": "User's photo URL" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User's role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of account creation" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "CreditItem": {
+      "title": "CreditItem",
+      "description": "A credit card or loan entry",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique ID for the credit item" },
+        "userId": { "type": "string", "description": "Owner's UID" },
+        "bankName": { "type": "string", "description": "Lender/Bank name" },
+        "type": { "type": "string", "enum": ["credit_card", "personal_loan", "home_loan", "auto_loan", "education_loan", "other"], "description": "Type of credit" },
+        "limit": { "type": "number", "description": "Total credit limit or loan amount" },
+        "balance": { "type": "number", "description": "Outstanding balance" },
+        "interestRate": { "type": "number", "description": "Annual interest rate (%)" },
+        "emi": { "type": "number", "description": "Monthly EMI or minimum due" },
+        "dueDate": { "type": "string", "description": "Billing cycle or due date" },
+        "tenure": { "type": "number", "description": "Tenure in months (for loans)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of creation" }
+      },
+      "required": ["uid", "userId", "bankName", "type", "balance", "interestRate", "createdAt"]
+    },
+    "Insight": {
+      "title": "Insight",
+      "description": "AI-generated financial insight",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["warning", "suggestion", "info"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "userId", "title", "description", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/users/{userId}/creditItems/{itemId}": {
+      "schema": "CreditItem",
+      "description": "User's credit cards and loans"
+    },
+    "/users/{userId}/insights/{insightId}": {
+      "schema": "Insight",
+      "description": "User's financial insights"
+    }
+  }
+}
