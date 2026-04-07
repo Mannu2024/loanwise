@@ -139,8 +139,8 @@ export default function CreditList({ userId }: CreditListProps) {
         </button>
       </header>
 
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col md:flex-row flex-wrap gap-4">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
             type="text"
@@ -150,44 +150,46 @@ export default function CreditList({ userId }: CreditListProps) {
             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
           />
         </div>
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3">
-          <Filter className="w-5 h-5 text-slate-400" />
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as any)}
-            className="bg-transparent outline-none text-sm font-medium text-slate-600"
-          >
-            <option value="all">All Types</option>
-            <option value="credit_card">Credit Cards</option>
-            <option value="personal_loan">Personal Loans</option>
-            <option value="home_loan">Home Loans</option>
-            <option value="auto_loan">Auto Loans</option>
-            <option value="education_loan">Education Loans</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3">
-          <Calendar className="w-5 h-5 text-slate-400" />
-          <select
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value as any)}
-            className="bg-transparent outline-none text-sm font-medium text-slate-600"
-          >
-            <option value="all">All Dates</option>
-            <option value="this_month">This Month</option>
-            <option value="next_3_months">Next 3 Months</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3">
-          <ChevronRight className="w-5 h-5 text-slate-400 rotate-90" />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-transparent outline-none text-sm font-medium text-slate-600"
-          >
-            <option value="none">No Sorting</option>
-            <option value="emi_asc">EMI Date (Soonest)</option>
-            <option value="emi_desc">EMI Date (Latest)</option>
-          </select>
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
+            <Filter className="w-5 h-5 text-slate-400 shrink-0" />
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as any)}
+              className="bg-transparent outline-none text-sm font-medium text-slate-600 w-full"
+            >
+              <option value="all">All Types</option>
+              <option value="credit_card">Credit Cards</option>
+              <option value="personal_loan">Personal Loans</option>
+              <option value="home_loan">Home Loans</option>
+              <option value="auto_loan">Auto Loans</option>
+              <option value="education_loan">Education Loans</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
+            <Calendar className="w-5 h-5 text-slate-400 shrink-0" />
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as any)}
+              className="bg-transparent outline-none text-sm font-medium text-slate-600 w-full"
+            >
+              <option value="all">All Dates</option>
+              <option value="this_month">This Month</option>
+              <option value="next_3_months">Next 3 Months</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
+            <ChevronRight className="w-5 h-5 text-slate-400 rotate-90 shrink-0" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-transparent outline-none text-sm font-medium text-slate-600 w-full"
+            >
+              <option value="none">No Sorting</option>
+              <option value="emi_asc">EMI Date (Soonest)</option>
+              <option value="emi_desc">EMI Date (Latest)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -280,7 +282,7 @@ export default function CreditList({ userId }: CreditListProps) {
                       <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{item.type.replace("_", " ")}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                     <button 
                       onClick={() => handleEdit(item)}
                       className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600"
@@ -562,18 +564,18 @@ function PaymentHistoryModal({ userId, item, onClose }: { userId: string, item: 
             ) : (
               <div className="space-y-3">
                 {item.paymentHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((record, i) => (
-                  <div key={i} className="p-4 bg-white border border-slate-100 rounded-xl flex justify-between items-center hover:shadow-md transition-all">
+                  <div key={i} className="p-4 bg-white border border-slate-100 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3 hover:shadow-md transition-all">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center">
+                      <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center shrink-0">
                         <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-900">{formatCurrency(record.amount)}</p>
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-900 truncate" title={formatCurrency(record.amount)}>{formatCurrency(record.amount)}</p>
                         <p className="text-xs text-slate-500">{record.date}</p>
                       </div>
                     </div>
                     {record.note && (
-                      <span className="text-xs font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
+                      <span className="text-xs font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-lg truncate sm:max-w-[50%]" title={record.note}>
                         {record.note}
                       </span>
                     )}
@@ -763,8 +765,8 @@ function RepaymentScheduleModal({ item, onClose }: { item: CreditItem | null, on
                   {acceleratedSchedule[0].error}
                 </div>
               ) : (
-                <div className="border border-slate-100 rounded-2xl overflow-hidden">
-                  <table className="w-full text-left border-collapse">
+                <div className="border border-slate-100 rounded-2xl overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
                     <thead>
                       <tr className="text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
                         <th className="py-4 pl-6">Month</th>
