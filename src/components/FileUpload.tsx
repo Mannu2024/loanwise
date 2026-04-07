@@ -12,7 +12,7 @@ interface FileUploadProps {
 }
 
 export default function FileUpload({ userId, onComplete }: FileUploadProps) {
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<{ file: File, comment: string }[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [extractedData, setExtractedData] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export default function FileUpload({ userId, onComplete }: FileUploadProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
-    const validFiles: File[] = [];
+    const validFiles: { file: File, comment: string }[] = [];
     let hasError = false;
 
     selectedFiles.forEach(file => {
@@ -28,7 +28,7 @@ export default function FileUpload({ userId, onComplete }: FileUploadProps) {
         setError(`File ${file.name} exceeds 10MB limit.`);
         hasError = true;
       } else {
-        validFiles.push(file);
+        validFiles.push({ file, comment: "" });
       }
     });
 
@@ -53,7 +53,7 @@ export default function FileUpload({ userId, onComplete }: FileUploadProps) {
 
       // Process files sequentially to avoid hitting rate limits too hard, 
       // though parallel is faster. For 3-5 files sequential is fine.
-      for (const file of files) {
+      for (const { file, comment } of files) {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
           reader.onload = () => resolve((reader.result as string).split(",")[1]);
@@ -62,30 +62,33 @@ export default function FileUpload({ userId, onComplete }: FileUploadProps) {
 
         const base64Data = await base64Promise;
         
-        const prompt = `You are a financial document analyzer. Extract all credit card and loan information from the provided document.
+        const prompt = `You are an expert financial document analyzer. Extract all credit card and loan information from the provided document.
         
-        For each credit item or loan found, identify:
-        - bankName: The name of the lender or bank.
+        ${comment ? `USER INSTRUCTIONS FOR THIS DOCUMENT: "${comment}"\nPlease follow these instructions carefully while extracting data.` : ''}
+        
+        For each credit item or loan found, identify the following fields. If a value is not found, use null or 0 as appropriate.
+        - bankName: The name of the lender or bank (string).
         - type: One of (credit_card, personal_loan, home_loan, auto_loan, education_loan, other).
-        - balance: Current outstanding balance or principal remaining.
-        - interestRate: Annual interest rate (as a number, e.g., 12.5).
-        - limit: Credit limit for cards or original loan amount for loans.
-        - emi: Monthly installment amount.
-        - dueDate: Next payment due date or billing cycle date.
-        - tenure: Total loan duration in months.
-        - totalAmountTaken: The original principal amount borrowed.
+        - balance: Current outstanding balance or principal remaining (number).
+        - interestRate: Annual interest rate as a number (e.g., 12.5).
+        - limit: Credit limit for cards or original loan amount for loans (number).
+        - emi: Monthly installment amount or minimum due (number).
+        - dueDate: Next payment due date (string, e.g., "15th of month" or "YYYY-MM-DD").
+        - billingDate: Statement generation date, typically for credit cards (string).
+        - tenure: Total loan duration in months (number).
+        - totalAmountTaken: The original principal amount borrowed (number).
         - emiStartDate: When the first EMI was paid (YYYY-MM-DD).
         - emiEndDate: When the last EMI is scheduled (YYYY-MM-DD).
         - nextEmiDate: The date of the upcoming EMI (YYYY-MM-DD).
-        - emiPaid: Number of installments already paid.
-        - emiLeft: Number of installments remaining.
-        - foreclosureAmount: Estimated amount to close the loan today.
+        - emiPaid: Number of installments already paid (number).
+        - emiLeft: Number of installments remaining (number).
+        - foreclosureAmount: Estimated amount to close the loan today (number).
         
-        Be precise with numbers. If a value is missing, use null or 0.
-        Format the output as a JSON array of objects. Return ONLY the JSON.`;
+        Be extremely precise with numbers. Do not include currency symbols in numbers.
+        Format the output as a JSON array of objects. Return ONLY the JSON array.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.1-pro-preview", // Using a more advanced model for better extraction
+          model: "gemini-3-flash-preview", // Using a faster model to avoid rate limits
           contents: [
             { text: prompt },
             { inlineData: { data: base64Data, mimeType: file.type } }
@@ -123,6 +126,7 @@ export default function FileUpload({ userId, onComplete }: FileUploadProps) {
           limit: parseFloat(item.limit) || 0,
           emi: parseFloat(item.emi) || 0,
           dueDate: item.dueDate || "",
+          billingDate: item.billingDate || "",
           tenure: parseInt(item.tenure) || 0,
           totalAmountTaken: parseFloat(item.totalAmountTaken) || 0,
           emiStartDate: item.emiStartDate || "",
@@ -199,19 +203,34 @@ export default function FileUpload({ userId, onComplete }: FileUploadProps) {
                 </div>
                 <div className="grid gap-3">
                   {files.map((f, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white rounded-lg shadow-sm">
-                          <FileText className="w-6 h-6 text-indigo-600" />
+                    <div key={idx} className="flex flex-col p-4 bg-slate-50 rounded-xl border border-slate-200 gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <FileText className="w-6 h-6 text-indigo-600" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-900 truncate max-w-[200px]">{f.file.name}</p>
+                            <p className="text-xs text-slate-500">{(f.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-slate-900 truncate max-w-[200px]">{f.name}</p>
-                          <p className="text-xs text-slate-500">{(f.size / 1024 / 1024).toFixed(2)} MB</p>
-                        </div>
+                        <button onClick={() => removeFile(idx)} className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-rose-600 transition-colors">
+                          <X className="w-5 h-5" />
+                        </button>
                       </div>
-                      <button onClick={() => removeFile(idx)} className="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-rose-600 transition-colors">
-                        <X className="w-5 h-5" />
-                      </button>
+                      <div className="mt-1">
+                        <input
+                          type="text"
+                          placeholder="Add instructions for AI (e.g., 'This is my HDFC credit card statement')"
+                          value={f.comment}
+                          onChange={(e) => {
+                            const newFiles = [...files];
+                            newFiles[idx].comment = e.target.value;
+                            setFiles(newFiles);
+                          }}
+                          className="w-full text-sm px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-400"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

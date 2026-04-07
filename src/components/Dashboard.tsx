@@ -4,7 +4,7 @@ import { db } from "../lib/firebase";
 import { CreditItem, CreditHealth } from "../types";
 import { formatCurrency, formatPercent } from "../lib/utils";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
-import { TrendingDown, TrendingUp, AlertCircle, CheckCircle2, Wallet, CreditCard as CardIcon, Landmark } from "lucide-react";
+import { TrendingDown, TrendingUp, AlertCircle, CheckCircle2, Wallet, CreditCard as CardIcon, Landmark, Calendar } from "lucide-react";
 import { motion } from "motion/react";
 
 interface DashboardProps {
@@ -20,6 +20,7 @@ export default function Dashboard({ userId }: DashboardProps) {
     monthlyEMI: 0,
     avgInterest: 0,
   });
+  const [nextMonthEMI, setNextMonthEMI] = useState(0);
 
   useEffect(() => {
     const q = query(collection(db, "users", userId, "creditItems"));
@@ -27,9 +28,32 @@ export default function Dashboard({ userId }: DashboardProps) {
       const items = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as CreditItem));
       setCredits(items);
       calculateHealth(items);
+      calculateNextMonthEMI(items);
     });
     return () => unsubscribe();
   }, [userId]);
+
+  const calculateNextMonthEMI = (items: CreditItem[]) => {
+    const now = new Date();
+    const nextMonth = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
+    const nextMonthYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+
+    const totalNextMonth = items.reduce((sum, item) => {
+      // If there's a specific nextEmiDate, check if it's in the next month
+      if (item.nextEmiDate) {
+        const emiDate = new Date(item.nextEmiDate);
+        if (emiDate.getMonth() === nextMonth && emiDate.getFullYear() === nextMonthYear) {
+          return sum + (item.emi || 0);
+        }
+      } else if (item.emi > 0 && item.balance > 0) {
+        // If no specific date but has active EMI and balance, assume it's due next month
+        return sum + item.emi;
+      }
+      return sum;
+    }, 0);
+
+    setNextMonthEMI(totalNextMonth);
+  };
 
   const calculateHealth = (items: CreditItem[]) => {
     const totalDebt = items.reduce((sum, item) => sum + item.balance, 0);
@@ -52,7 +76,8 @@ export default function Dashboard({ userId }: DashboardProps) {
 
   const chartData = credits.map(item => ({
     name: item.bankName,
-    value: item.balance,
+    balance: item.balance,
+    limit: item.limit || item.totalAmountTaken || item.balance,
     type: item.type
   }));
 
@@ -60,6 +85,28 @@ export default function Dashboard({ userId }: DashboardProps) {
 
   return (
     <div className="space-y-8">
+      {/* Utilization Alert */}
+      {health.utilization > 30 && (
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-center gap-4 text-rose-800"
+        >
+          <div className="p-2 bg-rose-100 rounded-xl">
+            <AlertCircle className="w-6 h-6 text-rose-600" />
+          </div>
+          <div className="flex-1">
+            <h4 className="font-bold">High Credit Utilization Alert</h4>
+            <p className="text-sm opacity-90">Your credit utilization is {formatPercent(health.utilization)}, which is above the recommended 30%. This may negatively impact your credit score.</p>
+          </div>
+          <div className="hidden md:block">
+            <button className="px-4 py-2 bg-rose-600 text-white rounded-xl text-sm font-bold hover:bg-rose-700 transition-all">
+              View Credits
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       <header className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Financial Overview</h1>
@@ -80,10 +127,11 @@ export default function Dashboard({ userId }: DashboardProps) {
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {[
           { label: "Total Debt", value: formatCurrency(health.totalDebt), icon: Wallet, color: "indigo", trend: "down" },
           { label: "Monthly EMI", value: formatCurrency(health.monthlyEMI), icon: Landmark, color: "blue", trend: "neutral" },
+          { label: "Next Month EMI", value: formatCurrency(nextMonthEMI), icon: Calendar, color: "violet", trend: "neutral" },
           { label: "Avg. Interest", value: formatPercent(health.avgInterest), icon: TrendingDown, color: "emerald", trend: "up" },
           { label: "Utilization", value: formatPercent(health.utilization), icon: CardIcon, color: "amber", trend: "down" },
         ].map((stat, i) => (
@@ -110,17 +158,37 @@ export default function Dashboard({ userId }: DashboardProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Debt Distribution */}
         <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">Debt Distribution</h3>
-          <div className="h-[300px]">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-slate-900">Debt Distribution</h3>
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Balance vs Limit</span>
+          </div>
+          <div className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }}
-                  cursor={{ fill: "#f8fafc" }}
+              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 11, fill: "#64748b", fontWeight: 500 }}
+                  interval={0}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
                 />
-                <Bar dataKey="value" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  tickFormatter={(value) => `₹${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                />
+                <Tooltip 
+                  contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", padding: "12px" }}
+                  cursor={{ fill: "#f8fafc" }}
+                  formatter={(value: number, name: string) => [formatCurrency(value), name.charAt(0).toUpperCase() + name.slice(1)]}
+                />
+                <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: "20px" }} />
+                <Bar dataKey="limit" fill="#e2e8f0" radius={[6, 6, 0, 0]} name="Total Limit/Loan" />
+                <Bar dataKey="balance" fill="#4f46e5" radius={[6, 6, 0, 0]} name="Current Balance" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -128,23 +196,35 @@ export default function Dashboard({ userId }: DashboardProps) {
 
         {/* Utilization Breakdown */}
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">Credit Mix</h3>
-          <div className="h-[300px]">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-slate-900">Credit Mix</h3>
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Portfolio</span>
+          </div>
+          <div className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={chartData}
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
+                  data={chartData.filter(d => d.balance > 0)}
+                  innerRadius={70}
+                  outerRadius={100}
+                  paddingAngle={8}
+                  dataKey="balance"
+                  stroke="none"
                 >
-                  {chartData.map((entry, index) => (
+                  {chartData.filter(d => d.balance > 0).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" height={36} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }}
+                  formatter={(value: number) => [formatCurrency(value), "Balance"]}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36} 
+                  iconType="circle"
+                  wrapperStyle={{ paddingTop: "20px", fontSize: "12px" }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>

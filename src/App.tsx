@@ -14,13 +14,14 @@ import Dashboard from "./components/Dashboard";
 import CreditList from "./components/CreditList";
 import Insights from "./components/Insights";
 import FileUpload from "./components/FileUpload";
+import AIAdvisor from "./components/AIAdvisor";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "credits" | "insights" | "upload">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "credits" | "insights" | "upload" | "advisor">("dashboard");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -76,6 +77,7 @@ export default function App() {
           {activeTab === "credits" && <CreditList userId={user.uid} />}
           {activeTab === "insights" && <Insights userId={user.uid} />}
           {activeTab === "upload" && <FileUpload userId={user.uid} onComplete={() => setActiveTab("credits")} />}
+          {activeTab === "advisor" && <AIAdvisor userId={user.uid} />}
         </motion.div>
       </AnimatePresence>
     </Layout>

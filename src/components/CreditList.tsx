@@ -5,6 +5,7 @@ import { CreditItem, CreditType } from "../types";
 import { formatCurrency, formatPercent, cn } from "../lib/utils";
 import { Plus, Trash2, Edit2, CreditCard, Landmark, GraduationCap, Car, Home, MoreHorizontal, Filter, Search, Calendar, ChevronRight, X, AlertCircle, Sparkles, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 interface CreditListProps {
   userId: string;
@@ -20,6 +21,36 @@ export default function CreditList({ userId }: CreditListProps) {
   const [dateFilter, setDateFilter] = useState<"all" | "this_month" | "next_3_months">("all");
   const [sortBy, setSortBy] = useState<"none" | "emi_asc" | "emi_desc">("none");
   const [search, setSearch] = useState("");
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+
+  const calculateProjectedInterest = (item: CreditItem) => {
+    let currentBalance = item.balance;
+    const monthlyRate = (item.interestRate / 100) / 12;
+    const emi = item.emi || 0;
+    let totalInterest = 0;
+    
+    if (emi <= 0 || currentBalance <= 0) return 0;
+    
+    for (let i = 1; i <= 360 && currentBalance > 0; i++) {
+      const interestPayment = currentBalance * monthlyRate;
+      const principalPayment = Math.min(emi - interestPayment, currentBalance);
+      
+      if (emi <= interestPayment) break;
+
+      totalInterest += interestPayment;
+      currentBalance -= principalPayment;
+    }
+    return totalInterest;
+  };
+
+  const totalPrincipal = credits.reduce((sum, item) => sum + item.balance, 0);
+  const totalProjectedInterest = credits.reduce((sum, item) => sum + calculateProjectedInterest(item), 0);
+  const totalPortfolioCost = totalPrincipal + totalProjectedInterest;
+
+  const portfolioData = [
+    { name: "Principal", value: totalPrincipal, color: "#4f46e5" },
+    { name: "Projected Interest", value: totalProjectedInterest, color: "#f43f5e" }
+  ];
 
   useEffect(() => {
     const q = query(collection(db, "users", userId, "creditItems"));
@@ -31,13 +62,17 @@ export default function CreditList({ userId }: CreditListProps) {
     return () => unsubscribe();
   }, [userId]);
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this item?")) {
-      try {
-        await deleteDoc(doc(db, "users", userId, "creditItems", id));
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `users/${userId}/creditItems/${id}`);
-      }
+  const handleDelete = (id: string) => {
+    setItemToDelete(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      await deleteDoc(doc(db, "users", userId, "creditItems", itemToDelete));
+      setItemToDelete(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${userId}/creditItems/${itemToDelete}`);
     }
   };
 
@@ -155,6 +190,72 @@ export default function CreditList({ userId }: CreditListProps) {
           </select>
         </div>
       </div>
+
+      {/* Portfolio Summary Section */}
+      {credits.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative"
+        >
+          <div className="flex flex-col lg:flex-row items-center gap-12 relative z-10">
+            <div className="w-full lg:w-1/3 flex flex-col items-center">
+              <h3 className="text-lg font-bold text-slate-900 mb-6 text-center">Portfolio Cost Breakdown</h3>
+              <div className="h-[240px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={portfolioData}
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={8}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {portfolioData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-6 mt-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-indigo-600"></div>
+                  <span className="text-xs font-bold text-slate-500 uppercase">Principal</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+                  <span className="text-xs font-bold text-slate-500 uppercase">Interest</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+              <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-center">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Principal</p>
+                <p className="text-3xl font-black text-slate-900">{formatCurrency(totalPrincipal)}</p>
+                <p className="text-xs text-slate-500 mt-2">Current outstanding balance</p>
+              </div>
+              <div className="p-6 bg-rose-50 rounded-2xl border border-rose-100 flex flex-col justify-center">
+                <p className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">Projected Interest</p>
+                <p className="text-3xl font-black text-rose-700">{formatCurrency(totalProjectedInterest)}</p>
+                <p className="text-xs text-rose-600 mt-2">Total interest over loan terms</p>
+              </div>
+              <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100 flex flex-col justify-center">
+                <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Total Portfolio Cost</p>
+                <p className="text-3xl font-black text-indigo-700">{formatCurrency(totalPortfolioCost)}</p>
+                <p className="text-xs text-indigo-600 mt-2">Principal + Projected Interest</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Decorative background elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full -mr-32 -mt-32 opacity-50 z-0"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-slate-50 rounded-full -ml-16 -mb-16 opacity-50 z-0"></div>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         <AnimatePresence mode="popLayout">
@@ -313,6 +414,44 @@ export default function CreditList({ userId }: CreditListProps) {
           onClose={() => setSelectedHistory(null)}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {itemToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-rose-100 text-rose-600 rounded-full">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">Delete Credit</h3>
+              </div>
+              <p className="text-slate-600 mb-6">
+                Are you sure you want to delete this credit item? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setItemToDelete(null)}
+                  className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="px-4 py-2 font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors shadow-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -454,33 +593,33 @@ function PaymentHistoryModal({ userId, item, onClose }: { userId: string, item: 
 }
 
 function RepaymentScheduleModal({ item, onClose }: { item: CreditItem | null, onClose: () => void }) {
+  const [extraPayment, setExtraPayment] = useState<number>(0);
+
   if (!item) return null;
 
-  const generateSchedule = () => {
+  const generateSchedule = (extra: number = 0) => {
     const schedule = [];
     let currentBalance = item.balance;
     const monthlyRate = (item.interestRate / 100) / 12;
     const emi = item.emi || 0;
+    const totalMonthlyPayment = emi + extra;
     const startDate = new Date();
     
-    // If no EMI or balance is 0, we can't show a schedule
     if (emi <= 0 || currentBalance <= 0) return [];
 
-    // Limit to 60 months or until balance is 0 to prevent infinite loops
-    for (let i = 1; i <= 60 && currentBalance > 0; i++) {
+    for (let i = 1; i <= 360 && currentBalance > 0; i++) {
       const interestPayment = currentBalance * monthlyRate;
-      const principalPayment = Math.min(emi - interestPayment, currentBalance);
+      const principalPayment = Math.min(totalMonthlyPayment - interestPayment, currentBalance);
       
-      // If EMI doesn't even cover interest, the debt will grow forever
-      if (emi <= interestPayment && i === 1) {
+      if (totalMonthlyPayment <= interestPayment && i === 1) {
         return [{
           month: 1,
           date: "N/A",
-          payment: emi,
+          payment: totalMonthlyPayment,
           interest: interestPayment,
           principal: 0,
           remaining: currentBalance,
-          error: "EMI is too low to cover interest. Debt will increase."
+          error: "Total payment is too low to cover interest. Debt will increase."
         }];
       }
 
@@ -492,7 +631,7 @@ function RepaymentScheduleModal({ item, onClose }: { item: CreditItem | null, on
       schedule.push({
         month: i,
         date: paymentDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
-        payment: emi,
+        payment: totalMonthlyPayment,
         interest: interestPayment,
         principal: principalPayment,
         remaining: Math.max(0, currentBalance)
@@ -503,73 +642,164 @@ function RepaymentScheduleModal({ item, onClose }: { item: CreditItem | null, on
     return schedule;
   };
 
-  const schedule = generateSchedule();
+  const normalSchedule = generateSchedule(0);
+  const acceleratedSchedule = generateSchedule(extraPayment);
+  
+  const timeSaved = normalSchedule.length - acceleratedSchedule.length;
+  const interestSaved = normalSchedule.reduce((sum, r) => sum + r.interest, 0) - acceleratedSchedule.reduce((sum, r) => sum + r.interest, 0);
+
+  const totalPrincipal = item.balance;
+  const totalInterest = acceleratedSchedule.reduce((sum, r) => sum + r.interest, 0);
+  const totalCost = totalPrincipal + totalInterest;
+
+  const comparisonData = [
+    { name: "Principal", value: totalPrincipal, color: "#4f46e5" },
+    { name: "Interest", value: totalInterest, color: "#f43f5e" }
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
       >
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0 sticky top-0 z-10">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">{item.bankName} - Repayment Schedule</h2>
-            <p className="text-sm text-slate-500">Projected monthly payments and remaining balance</p>
+            <h2 className="text-xl font-bold text-slate-900">{item.bankName} - Payoff Calculator</h2>
+            <p className="text-sm text-slate-500">See how extra payments speed up your debt-free journey</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white rounded-lg text-slate-400 transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          {schedule.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">
-              No schedule available. Please ensure EMI and Balance are correctly set.
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Payoff Calculator Controls */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-1 p-6 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-4">
+              <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Extra Payment
+              </h3>
+              <div>
+                <label className="text-xs font-bold text-slate-500 mb-1 block">Monthly Extra Amount</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                  <input
+                    type="number"
+                    value={extraPayment || ""}
+                    onChange={(e) => setExtraPayment(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-8 pr-4 py-3 bg-white border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-600"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t border-indigo-100">
+                <p className="text-xs font-bold text-indigo-400 uppercase mb-3">Total Cost Breakdown</p>
+                <div className="h-[160px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={comparisonData}
+                        innerRadius={40}
+                        outerRadius={60}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {comparisonData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex justify-between text-[10px] font-bold uppercase mt-2">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-indigo-600"></div>
+                    <span className="text-slate-500">Principal</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                    <span className="text-slate-500">Interest</span>
+                  </div>
+                </div>
+              </div>
             </div>
-          ) : schedule[0].error ? (
-            <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-sm flex items-center gap-3">
-              <AlertCircle className="w-5 h-5" />
-              {schedule[0].error}
+
+            <div className="lg:col-span-3 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
+                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">Time Saved</p>
+                  <p className="text-3xl font-black text-emerald-700">{timeSaved} <span className="text-sm font-bold">Months</span></p>
+                  <p className="text-xs text-emerald-600 mt-2 font-medium">Pay off by {acceleratedSchedule[acceleratedSchedule.length - 1]?.date || "N/A"}</p>
+                </div>
+                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                  <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Interest Saved</p>
+                  <p className="text-3xl font-black text-blue-700">{formatCurrency(Math.max(0, interestSaved))}</p>
+                  <p className="text-xs text-blue-600 mt-2 font-medium">Total interest: {formatCurrency(totalInterest)}</p>
+                </div>
+                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Cost</p>
+                  <p className="text-3xl font-black text-slate-900">{formatCurrency(totalCost)}</p>
+                  <p className="text-xs text-slate-400 mt-2 font-medium">Principal + Interest</p>
+                </div>
+              </div>
+
+              {acceleratedSchedule.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  No schedule available. Please ensure EMI and Balance are correctly set.
+                </div>
+              ) : acceleratedSchedule[0].error ? (
+                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-sm flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5" />
+                  {acceleratedSchedule[0].error}
+                </div>
+              ) : (
+                <div className="border border-slate-100 rounded-2xl overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                        <th className="py-4 pl-6">Month</th>
+                        <th className="py-4">Date</th>
+                        <th className="py-4 text-right">Total Payment</th>
+                        <th className="py-4 text-right">Principal</th>
+                        <th className="py-4 text-right">Interest</th>
+                        <th className="py-4 text-right pr-6">Remaining</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {acceleratedSchedule.slice(0, 24).map((row) => (
+                        <tr key={row.month} className="text-sm hover:bg-slate-50 transition-colors">
+                          <td className="py-4 pl-6 font-medium text-slate-500">#{row.month}</td>
+                          <td className="py-4 font-semibold text-slate-900">{row.date}</td>
+                          <td className="py-4 text-right text-slate-600">{formatCurrency(row.payment)}</td>
+                          <td className="py-4 text-right text-emerald-600 font-medium">{formatCurrency(row.principal)}</td>
+                          <td className="py-4 text-right text-rose-500">{formatCurrency(row.interest)}</td>
+                          <td className="py-4 text-right font-bold text-slate-900 pr-6">{formatCurrency(row.remaining)}</td>
+                        </tr>
+                      ))}
+                      {acceleratedSchedule.length > 24 && (
+                        <tr>
+                          <td colSpan={6} className="py-4 text-center text-slate-400 text-xs font-medium bg-slate-50/30 italic">
+                            ... and {acceleratedSchedule.length - 24} more months until debt-free ...
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                  <th className="pb-4 pl-2">Month</th>
-                  <th className="pb-4">Date</th>
-                  <th className="pb-4 text-right">EMI</th>
-                  <th className="pb-4 text-right">Principal</th>
-                  <th className="pb-4 text-right">Interest</th>
-                  <th className="pb-4 text-right pr-2">Remaining</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {schedule.map((row) => (
-                  <tr key={row.month} className="text-sm hover:bg-slate-50 transition-colors">
-                    <td className="py-4 pl-2 font-medium text-slate-500">#{row.month}</td>
-                    <td className="py-4 font-semibold text-slate-900">{row.date}</td>
-                    <td className="py-4 text-right text-slate-600">{formatCurrency(row.payment)}</td>
-                    <td className="py-4 text-right text-emerald-600 font-medium">{formatCurrency(row.principal)}</td>
-                    <td className="py-4 text-right text-rose-500">{formatCurrency(row.interest)}</td>
-                    <td className="py-4 text-right font-bold text-slate-900 pr-2">{formatCurrency(row.remaining)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          </div>
         </div>
 
-        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0 sticky bottom-0 z-10">
-          <div className="text-sm">
-            <span className="text-slate-500">Total Interest Payable: </span>
-            <span className="font-bold text-slate-900">
-              {formatCurrency(schedule.reduce((sum, row) => sum + (row.interest || 0), 0))}
-            </span>
-          </div>
+        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0 sticky bottom-0 z-10">
           <button
             onClick={onClose}
-            className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+            className="px-8 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all"
           >
             Close
           </button>
@@ -588,6 +818,7 @@ function CreditModal({ isOpen, onClose, userId, initialData }: { isOpen: boolean
     interestRate: "",
     emi: "",
     dueDate: "",
+    billingDate: "",
     tenure: "",
     totalAmountTaken: "",
     emiStartDate: "",
@@ -608,6 +839,7 @@ function CreditModal({ isOpen, onClose, userId, initialData }: { isOpen: boolean
         interestRate: initialData.interestRate.toString(),
         emi: initialData.emi?.toString() || "",
         dueDate: initialData.dueDate || "",
+        billingDate: initialData.billingDate || "",
         tenure: initialData.tenure?.toString() || "",
         totalAmountTaken: initialData.totalAmountTaken?.toString() || "",
         emiStartDate: initialData.emiStartDate || "",
@@ -626,6 +858,7 @@ function CreditModal({ isOpen, onClose, userId, initialData }: { isOpen: boolean
         interestRate: "",
         emi: "",
         dueDate: "",
+        billingDate: "",
         tenure: "",
         totalAmountTaken: "",
         emiStartDate: "",
@@ -650,6 +883,7 @@ function CreditModal({ isOpen, onClose, userId, initialData }: { isOpen: boolean
         interestRate: parseFloat(formData.interestRate) || 0,
         emi: formData.emi ? parseFloat(formData.emi) : 0,
         dueDate: formData.dueDate || "",
+        billingDate: formData.billingDate || "",
         tenure: formData.tenure ? parseInt(formData.tenure) : 0,
         totalAmountTaken: formData.totalAmountTaken ? parseFloat(formData.totalAmountTaken) : 0,
         emiStartDate: formData.emiStartDate || "",
@@ -664,9 +898,11 @@ function CreditModal({ isOpen, onClose, userId, initialData }: { isOpen: boolean
         createdAt: initialData?.createdAt || Timestamp.now(),
       };
 
+      console.log("Saving credit item to path:", path, creditItem);
       try {
         await setDoc(doc(db, path, creditItem.uid), creditItem);
       } catch (err) {
+        console.error("Firestore setDoc error details:", err);
         handleFirestoreError(err, OperationType.WRITE, path);
       }
 
@@ -770,7 +1006,7 @@ function CreditModal({ isOpen, onClose, userId, initialData }: { isOpen: boolean
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Due Date / Billing Cycle</label>
+            <label className="text-sm font-semibold text-slate-700">Payment Due Date</label>
             <input
               type="text"
               value={formData.dueDate}
@@ -779,6 +1015,19 @@ function CreditModal({ isOpen, onClose, userId, initialData }: { isOpen: boolean
               placeholder="e.g. 15th of month"
             />
           </div>
+
+          {formData.type === "credit_card" && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Billing Date</label>
+              <input
+                type="text"
+                value={formData.billingDate}
+                onChange={(e) => setFormData({ ...formData, billingDate: e.target.value })}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                placeholder="e.g. 1st of month"
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700">Tenure (Months)</label>

@@ -27,6 +27,7 @@ export interface CreditItem {
   interestRate: number;
   emi: number;
   dueDate?: string;
+  billingDate?: string;
   tenure?: number;
   totalAmountTaken?: number;
   emiStartDate?: string;
