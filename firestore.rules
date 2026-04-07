@@ -140,8 +140,8 @@ service cloud.firestore {
 
       match /insights/{insightId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow create: if isAdmin(); // Only admins (or AI via admin) can create insights
-        allow update: if isAdmin();
+        allow create: if (isOwner(userId) && isValidInsight(request.resource.data)) || isAdmin();
+        allow update: if (isOwner(userId) && isValidInsight(request.resource.data)) || isAdmin();
         allow delete: if isOwner(userId) || isAdmin();
       }
     }

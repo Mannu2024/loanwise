@@ -232,20 +232,20 @@ export default function CreditList({ userId }: CreditListProps) {
               </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-              <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-center">
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 w-full min-w-0">
+              <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-center min-w-0">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Principal</p>
-                <p className="text-3xl font-black text-slate-900">{formatCurrency(totalPrincipal)}</p>
+                <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate" title={formatCurrency(totalPrincipal)}>{formatCurrency(totalPrincipal)}</p>
                 <p className="text-xs text-slate-500 mt-2">Current outstanding balance</p>
               </div>
-              <div className="p-6 bg-rose-50 rounded-2xl border border-rose-100 flex flex-col justify-center">
+              <div className="p-6 bg-rose-50 rounded-2xl border border-rose-100 flex flex-col justify-center min-w-0">
                 <p className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">Projected Interest</p>
-                <p className="text-3xl font-black text-rose-700">{formatCurrency(totalProjectedInterest)}</p>
+                <p className="text-2xl lg:text-3xl font-black text-rose-700 truncate" title={formatCurrency(totalProjectedInterest)}>{formatCurrency(totalProjectedInterest)}</p>
                 <p className="text-xs text-rose-600 mt-2">Total interest over loan terms</p>
               </div>
-              <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100 flex flex-col justify-center">
+              <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100 flex flex-col justify-center min-w-0">
                 <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Total Portfolio Cost</p>
-                <p className="text-3xl font-black text-indigo-700">{formatCurrency(totalPortfolioCost)}</p>
+                <p className="text-2xl lg:text-3xl font-black text-indigo-700 truncate" title={formatCurrency(totalPortfolioCost)}>{formatCurrency(totalPortfolioCost)}</p>
                 <p className="text-xs text-indigo-600 mt-2">Principal + Projected Interest</p>
               </div>
             </div>
@@ -257,7 +257,7 @@ export default function CreditList({ userId }: CreditListProps) {
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         <AnimatePresence mode="popLayout">
           {filteredCredits.map((item) => {
             const Icon = getIcon(item.type);
@@ -297,12 +297,12 @@ export default function CreditList({ userId }: CreditListProps) {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-end">
-                    <div>
+                  <div className="flex justify-between items-end gap-2">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs text-slate-400 mb-1">Outstanding Balance</p>
-                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(item.balance)}</p>
+                      <p className="text-2xl font-bold text-slate-900 truncate" title={formatCurrency(item.balance)}>{formatCurrency(item.balance)}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <p className="text-xs text-slate-400 mb-1">Interest Rate</p>
                       <p className="text-lg font-bold text-indigo-600">{formatPercent(item.interestRate)}</p>
                     </div>
@@ -314,8 +314,13 @@ export default function CreditList({ userId }: CreditListProps) {
                         <span className="text-indigo-600 font-medium">Balance after next EMI</span>
                         <span className="text-slate-400">Projected</span>
                       </div>
-                      <div className="flex justify-between items-end">
-                        <p className="text-lg font-bold text-slate-900">
+                      <div className="flex justify-between items-end gap-2">
+                        <p className="text-lg font-bold text-slate-900 truncate min-w-0 flex-1" title={(() => {
+                            const monthlyRate = (item.interestRate / 100) / 12;
+                            const interest = item.balance * monthlyRate;
+                            const principal = Math.min(item.emi - interest, item.balance);
+                            return formatCurrency(Math.max(0, item.balance - principal));
+                          })()}>
                           {(() => {
                             const monthlyRate = (item.interestRate / 100) / 12;
                             const interest = item.balance * monthlyRate;
@@ -323,7 +328,7 @@ export default function CreditList({ userId }: CreditListProps) {
                             return formatCurrency(Math.max(0, item.balance - principal));
                           })()}
                         </p>
-                        <p className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                        <p className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full shrink-0">
                           -{(() => {
                             const monthlyRate = (item.interestRate / 100) / 12;
                             const interest = item.balance * monthlyRate;
@@ -730,20 +735,20 @@ function RepaymentScheduleModal({ item, onClose }: { item: CreditItem | null, on
             </div>
 
             <div className="lg:col-span-3 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 min-w-0">
                   <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">Time Saved</p>
-                  <p className="text-3xl font-black text-emerald-700">{timeSaved} <span className="text-sm font-bold">Months</span></p>
-                  <p className="text-xs text-emerald-600 mt-2 font-medium">Pay off by {acceleratedSchedule[acceleratedSchedule.length - 1]?.date || "N/A"}</p>
+                  <p className="text-2xl lg:text-3xl font-black text-emerald-700 truncate" title={`${timeSaved} Months`}>{timeSaved} <span className="text-sm font-bold">Months</span></p>
+                  <p className="text-xs text-emerald-600 mt-2 font-medium truncate" title={`Pay off by ${acceleratedSchedule[acceleratedSchedule.length - 1]?.date || "N/A"}`}>Pay off by {acceleratedSchedule[acceleratedSchedule.length - 1]?.date || "N/A"}</p>
                 </div>
-                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 min-w-0">
                   <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Interest Saved</p>
-                  <p className="text-3xl font-black text-blue-700">{formatCurrency(Math.max(0, interestSaved))}</p>
-                  <p className="text-xs text-blue-600 mt-2 font-medium">Total interest: {formatCurrency(totalInterest)}</p>
+                  <p className="text-2xl lg:text-3xl font-black text-blue-700 truncate" title={formatCurrency(Math.max(0, interestSaved))}>{formatCurrency(Math.max(0, interestSaved))}</p>
+                  <p className="text-xs text-blue-600 mt-2 font-medium truncate" title={`Total interest: ${formatCurrency(totalInterest)}`}>Total interest: {formatCurrency(totalInterest)}</p>
                 </div>
-                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 min-w-0">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Cost</p>
-                  <p className="text-3xl font-black text-slate-900">{formatCurrency(totalCost)}</p>
+                  <p className="text-2xl lg:text-3xl font-black text-slate-900 truncate" title={formatCurrency(totalCost)}>{formatCurrency(totalCost)}</p>
                   <p className="text-xs text-slate-400 mt-2 font-medium">Principal + Interest</p>
                 </div>
               </div>

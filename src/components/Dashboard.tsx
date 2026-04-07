@@ -107,7 +107,7 @@ export default function Dashboard({ userId }: DashboardProps) {
         </motion.div>
       )}
 
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Financial Overview</h1>
           <p className="text-slate-500 mt-1">Here's how your credit health looks today.</p>
@@ -127,7 +127,7 @@ export default function Dashboard({ userId }: DashboardProps) {
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         {[
           { label: "Total Debt", value: formatCurrency(health.totalDebt), icon: Wallet, color: "indigo", trend: "down" },
           { label: "Monthly EMI", value: formatCurrency(health.monthlyEMI), icon: Landmark, color: "blue", trend: "neutral" },
@@ -140,7 +140,7 @@ export default function Dashboard({ userId }: DashboardProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
+            className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-w-0"
           >
             <div className="flex items-center justify-between mb-4">
               <div className={`p-2 rounded-lg bg-${stat.color}-50`}>
@@ -149,8 +149,8 @@ export default function Dashboard({ userId }: DashboardProps) {
               {stat.trend === "down" && <TrendingDown className="w-4 h-4 text-emerald-500" />}
               {stat.trend === "up" && <TrendingUp className="w-4 h-4 text-rose-500" />}
             </div>
-            <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</p>
+            <p className="text-sm font-medium text-slate-500 truncate" title={stat.label}>{stat.label}</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1 truncate" title={stat.value}>{stat.value}</p>
           </motion.div>
         ))}
       </div>
